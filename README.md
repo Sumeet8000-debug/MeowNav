@@ -1,17 +1,17 @@
-﻿# MeowResc - Tier-1 Flood Detection & Telemetry Backend
+﻿# MeowResc - AI-Powered Disaster Detection & Telemetry System (AI-02)
 
-Production-grade FastAPI backend and ML pipeline for disaster response (Problem Statement AI-02).
+End-to-end disaster response system featuring a FastAPI backend, Random Forest ML risk model, telemetry verification, and an interactive Streamlit control room.
 
-## Quickstart
+## Quickstart (Run Locally)
 
-1. Install Dependencies:
-   pip install -r requirements.txt
+### 1. Install Dependencies
+pip install -r requirements.txt
 
-2. Train Tier-1 Flood Model:
-   python ml_pipeline/train_tier1.py
+### 2. Train ML Model
+python ml_pipeline/train_tier1.py
 
-3. Start FastAPI Backend:
-   uvicorn backend.main:app --reload
+### 3. Launch Backend API (Terminal 1)
+uvicorn backend.main:app --reload --port 8000
 
-4. API Documentation:
-   Navigate to http://localhost:8000/docs to test endpoints via Swagger UI.
+### 4. Launch Streamlit Dashboard (Terminal 2)
+python -m streamlit run frontend/app.py
