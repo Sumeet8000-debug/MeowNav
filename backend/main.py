@@ -1,13 +1,23 @@
+"""
+FastAPI Server Engine: Disaster Response & High-Throughput Telemetry Ingestion
+Project: MeowResc (SIH26168 / AI-02)
+"""
+
+# Standard library imports
 import os
 import uuid
 import pathlib
 import datetime
-import numpy as np
-import joblib
 from contextlib import asynccontextmanager
 from typing import List, Optional
+
+# Third-party imports
+import numpy as np
+import joblib
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
+
 
 # ------------------------------------------------------------------------------
 # LIFESPAN AND ARTIFACT LOADING
@@ -34,12 +44,23 @@ async def lifespan(app: FastAPI):
     ml_artifacts.clear()
     print("[-] Unloaded ML artifacts.")
 
+
 app = FastAPI(
     title="MeowResc Backend API",
     description="Production-grade disaster detection and triage backend (Problem Statement AI-02).",
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Cross-Origin Resource Sharing (Allows Streamlit / Web Clients to connect)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # ------------------------------------------------------------------------------
 # PYDANTIC SCHEMAS
@@ -110,20 +131,33 @@ class SOSResponse(BaseModel):
     acknowledged: bool
     timestamp: str
 
+
 # ------------------------------------------------------------------------------
 # API ENDPOINTS
 # ------------------------------------------------------------------------------
+@app.get("/health", status_code=status.HTTP_200_OK, tags=["System"])
+async def healthcheck() -> dict:
+    """
+    Returns server health and verifies active ML model in memory.
+    """
+    return {
+        "status": "HEALTHY",
+        "model_loaded": "tier1_model" in ml_artifacts,
+        "version": "1.0.0"
+    }
+
+
 @app.post(
     "/api/v1/predict-tier1",
     response_model=PredictTier1Response,
     status_code=status.HTTP_200_OK,
     tags=["Risk Inference"]
 )
-async def predict_tier1(payload: EnvironmentalPayload):
+async def predict_tier1(payload: EnvironmentalPayload) -> PredictTier1Response:
     """
     Evaluates environmental sensor metrics and outputs a continuous flood probability score.
     
-    If probability > 0.60, system state transitions to **WATCH**; otherwise remains **NORMAL**.
+    If probability >= 0.60, system state transitions to **WATCH**; otherwise remains **NORMAL**.
     """
     model = ml_artifacts.get("tier1_model")
     if not model:
@@ -139,7 +173,6 @@ async def predict_tier1(payload: EnvironmentalPayload):
         payload.temperature_c
     ]])
 
-    # Inference probability for positive class (1: Flood)
     prob = float(model.predict_proba(features)[0][1])
     system_state = "WATCH" if prob >= 0.60 else "NORMAL"
 
@@ -156,7 +189,7 @@ async def predict_tier1(payload: EnvironmentalPayload):
     status_code=status.HTTP_200_OK,
     tags=["Hard Telemetry Verification"]
 )
-async def confirm_imu(payload: IMUTelemetryPayload):
+async def confirm_imu(payload: IMUTelemetryPayload) -> IMUConfirmResponse:
     """
     Processes high-frequency 3-axis accelerometer readings to verify physical structural impact or collapse.
     
@@ -181,7 +214,6 @@ async def confirm_imu(payload: IMUTelemetryPayload):
     ay = np.array(payload.accel_y, dtype=np.float64)
     az = np.array(payload.accel_z, dtype=np.float64)
 
-    # Calculate vector magnitude across time series array
     magnitude_series = np.sqrt(ax**2 + ay**2 + az**2)
     peak_g = float(np.max(magnitude_series))
 
@@ -202,7 +234,7 @@ async def confirm_imu(payload: IMUTelemetryPayload):
     status_code=status.HTTP_201_CREATED,
     tags=["Dispatch System"]
 )
-async def trigger_sos(payload: SOSPayload):
+async def trigger_sos(payload: SOSPayload) -> SOSResponse:
     """
     Ingests high-priority SOS emergency payloads with medical flashcards and emits immediate dispatch instructions.
     """
